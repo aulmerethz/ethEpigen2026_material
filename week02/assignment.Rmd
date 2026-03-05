@@ -1,0 +1,93 @@
+---
+title: "assignment"
+output: html_document
+date: "2026-03-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. Using AnnotationHub, find and download the following annotations data
+
+
+```{r}
+
+library(AnnotationHub)
+library(ensembldb)
+library(GenomicRanges)
+library(epiwraps)
+
+```
+
+1.1 The mouse (Mus Musculus) EnsDb object, version 102, genome build GRCm38
+
+```{r}
+ah <- AnnotationHub()
+
+query(ah, c("EnsDb", "Mus musculus", "102", "GRCm38"))
+
+mouse_ensdb_102 <- ah[["AH89211"]]
+
+mouse_ensdb_102
+
+```
+
+1.2 The mouse genome sequence ( dna_sm ) in TwoBit/2bit format for GRCm38
+
+```{r}
+query(ah, c("Mus musculus", "GRCm38", "TwoBit"))
+
+mouse_dnasm_2bit <- ah[["AH49775"]]
+
+mouse_dnasm_2bit
+
+```
+
+1.3 The drosophila melanogaster genome sequence ( dna_sm ) in TwoBit/2bit format for BDGP6
+
+```{r}
+
+query(ah, c("Drosophila melanogaster", "BDGP6", "TwoBit"))
+
+drosophila_dnasm_2bit <- ah[["AH106160"]]
+
+drosophila_dnasm_2bit
+
+```
+
+2. Using the mouse EnsDb, find the following:
+
+2.1 How many different ensembl gene IDs and gene symbols are there for protein-coding genes?
+
+```{r}
+
+mouse_genes <- genes(mouse_ensdb_102)
+
+mouse_pcg <- mouse_genes[mouse_genes$gene_biotype=="protein_coding"]
+
+length(mouse_pcg)
+length(unique(mouse_pcg$gene_id))
+length(unique(mouse_pcg$symbol))
+
+```
+2.2 Plot the distribution of the (spliced) length of protein-coding transcripts
+
+```{r}
+
+mouse_exons <- exonsBy(mouse_ensdb_102, filter = ~ tx_biotype == "protein_coding")
+head(width(mouse_exons))
+
+tx_lengths <- sum(width(mouse_exons))
+head(tx_lengths)
+
+```
+```{r}
+
+hist(tx_lengths,
+     breaks=100,
+     main = "Distribution of protein-coding transcript lengths",
+     xlab = "Transcript length")
+
+```
+
