@@ -1,0 +1,117 @@
+---
+title: "Assignment"
+output: html_document
+date: "2026-03-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)      # read alignment
+  library(rtracklayer)   # read/write genomic file formats
+  library(Biostrings)    # handling sequences
+  library(Rfastp)        # read QC/trimming
+  library(epiwraps)
+})
+ah <- AnnotationHub()
+```
+
+
+# 1. Download CHIP-seq
+
+```{r}
+
+dir.create("raw")
+download.file("https://www.encodeproject.org/files/ENCFF127RRR/@@download/ENCFF127RRR.fastq.gz", "raw/ENCFF127RRR.fastq.gz", mode="wb")
+
+```
+
+# 2. Processing the raw data
+
+```{r}
+
+dir.create("rfastp.trimmed")
+qc <- lapply(c(ENCFF127RRR="raw/ENCFF127RRR.fastq.gz"), FUN=function(x){
+  Rfastp::rfastp(x, thread=4, overrepresentationAnalysis=TRUE,
+                 outputFastq=file.path("rfastp.trimmed/",gsub("\\.fastq\\.gz$","",basename(x))))
+})
+
+#file.exists("rfastp.trimmed/ENCFF127RRR_R1.fastq.gz")
+
+genome <- ah[["AH49674"]]
+dir.create("BDGP6_genome")
+export(import.2bit(genome), "BDGP6_genome/genome.fasta.gz", compress=TRUE)
+
+Rsubread::buildindex("BDGP6_genome/rsubread", reference="BDGP6_genome/genome.fasta.gz")
+
+```
+
+```{r}
+
+dir.create("aligned")
+align.stats <- Rsubread::align(index="BDGP6_genome/rsubread", type="dna",
+                               readfile1="rfastp.trimmed/ENCFF127RRR_R1.fastq.gz",
+                               output_file="aligned/ENCFF127RRR.bam",
+                               nthreads=6, sortReadsByCoordinates=TRUE)
+align.stats
+
+```
+
+# 3. Getting the peaks
+
+```{r}
+
+dir.create("peaks")
+
+if(!require("MACSr",quietly=TRUE)) { BiocManager::install("ETHZ-INS/epiwraps", ref="callpeaks")}
+#if(!require("MACSr",quietly=TRUE)) BiocManager::install("MACSr")
+library(MACSr)
+
+peaks <- callPeaks(bam="aligned/ENCFF127RRR.bam")
+
+```
+
+```{r}
+length(peaks)
+```
+```{r}
+head(peaks)
+
+peaks_gr<-GRanges(peaks)
+
+query(ah, c("EnsDb", "Drosophila"))
+
+```
+```{r}
+ensdb <- ah[["AH119285"]]
+
+genes <- genes(ensdb)
+
+peaksoverlaps <- peaks_gr[queryHits(findOverlaps(peaks_gr, genes))]
+
+```
+
+```{r}
+
+length(peaksoverlaps) #Number of peaks in a gene
+
+first_peak <- peaksoverlaps[1]
+
+```
+
+# 4. Report
+
+Number of mapped reads: 3504769
+
+Percentage of mapped reads: 91.82% (3504769 out of 3816990)	
+
+Number of peaks: 2697
+
+```{r}
+plotSignalTracks(list("aligned/ENCFF127RRR.bam"), region=first_peak, extend=5000)
+```
+
